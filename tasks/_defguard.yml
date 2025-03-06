@@ -1,0 +1,140 @@
+---
+- name: Get current defguard groups
+  ansible.builtin.uri:
+    url: "{{ defguard_api_url }}/group"
+    method: GET
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ lookup('ansible.builtin.env', 'DEFGUARD_TOKEN') }}"
+  delegate_to: localhost
+  connection: local
+  become: false
+  register: defguard_groups
+
+- name: "Create defguard group {{ defguard_gw_group }}"
+  ansible.builtin.uri:
+    url: "{{ defguard_api_url }}/group"
+    method: POST
+    status_code:
+      - 200
+      - 201
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ lookup('ansible.builtin.env', 'DEFGUARD_TOKEN') }}"
+    body: 
+      is_admin: false
+      members: []
+      name: "{{ defguard_gw_group }}"
+  delegate_to: localhost
+  connection: local
+  become: false
+  register: defguard_group
+  when:
+    defguard_gw_group not in defguard_groups.json.groups
+
+- name: Get current defguard networks
+  ansible.builtin.uri:
+    url: "{{ defguard_api_url }}/network"
+    method: GET
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ lookup('ansible.builtin.env', 'DEFGUARD_TOKEN') }}"
+  delegate_to: localhost
+  connection: local
+  become: false
+  register: defguard_networks_full
+
+- name: Format defguard networks
+  set_fact:
+    defguard_networks: "{{ defguard_networks | default({}) | combine({item.name: item.id}) }}"
+  loop: "{{ defguard_networks_full.json }}"
+  no_log: true
+
+- name: "Create defguard network (location) {{ defguard_gw_name }}"
+  ansible.builtin.uri:
+    url: "{{ defguard_api_url }}/network"
+    method: POST
+    status_code:
+      - 200
+      - 201
+    headers:
+      Content-Type: "application/json"
+      Authorization: "Bearer {{ lookup('ansible.builtin.env', 'DEFGUARD_TOKEN') }}"
+    body_format: json
+    body: >
+     {
+      "address": "{{ defguard_gw_ip }}",
+      "allowed_groups": {{ [defguard_gw_group] }},
+      "allowed_ips": "{{ defguard_gw_allowed_ips }}",
+      "dns": "{{ defguard_gw_dns }}",
+      "endpoint": "{{ defguard_gw_public_ip }}",
+      "keepalive_interval": {{ defguard_keepalive_interval | int }},
+      "mfa_enabled": {{ defguard_mfa | bool }},
+      "name": "{{ defguard_gw_name }}",
+      "peer_disconnect_threshold": {{ defguard_peer_disconnect_threshold | int }},
+      "port": {{ defguard_gw_port | first | int }}
+     }
+  delegate_to: localhost
+  connection: local
+  become: false
+  register: defguard_network_post
+  when:
+    defguard_gw_name not in defguard_networks.keys()
+
+- name: "Modify defguard network (location) {{ defguard_gw_name }}"
+  ansible.builtin.uri:
+    url: "{{ defguard_api_url }}/network/{{ defguard_networks[defguard_gw_name] }}"
+    method: PUT
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ lookup('ansible.builtin.env', 'DEFGUARD_TOKEN') }}"
+    body: >
+     {
+      "address": "{{ defguard_gw_ip }}",
+      "allowed_groups": {{ [defguard_gw_group] }},
+      "allowed_ips": "{{ defguard_gw_allowed_ips }}",
+      "dns": "{{ defguard_gw_dns }}",
+      "endpoint": "{{ defguard_gw_public_ip }}",
+      "keepalive_interval": {{ defguard_keepalive_interval | int }},
+      "mfa_enabled": {{ defguard_mfa | bool }},
+      "name": "{{ defguard_gw_name }}",
+      "peer_disconnect_threshold": {{ defguard_peer_disconnect_threshold | int }},
+      "port": {{ defguard_gw_port | first | int }}
+     }
+  delegate_to: localhost
+  connection: local
+  become: false
+  register: defguard_network_put
+  when:
+    defguard_gw_name in defguard_networks.keys()
+
+- name: Set defguard_network var (post)
+  set_fact:
+    defguard_network: "{{ defguard_network_post }}"
+  when: '"skipped" not in defguard_network_post'
+
+- name: Set defguard_network var (put)
+  set_fact:
+    defguard_network: "{{ defguard_network_put }}"
+  when: '"skipped" not in defguard_network_put'
+
+- name: Set defguard gw variables (pubkey, id)
+  set_fact:
+    defguard_gw_pubkey: "{{ defguard_network.json.pubkey }}"
+    defguard_gw_id: "{{ defguard_network.json.id }}"
+
+- name: "Get defguard network {{ defguard_gw_name }} ({{ defguard_gw_id }}) token "
+  ansible.builtin.uri:
+    url: "{{ defguard_api_url }}/network/{{ defguard_gw_id }}/token"
+    method: GET
+    body_format: json
+    headers:
+      Authorization: "Bearer {{ lookup('ansible.builtin.env', 'DEFGUARD_TOKEN') }}"
+  delegate_to: localhost
+  connection: local
+  become: false
+  register: defguard_network_token
+
+- name: Set defguard gw variable token
+  set_fact:
+    defguard_gw_token: "{{ defguard_network_token.json.token }}"
