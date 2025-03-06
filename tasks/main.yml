@@ -1,0 +1,8 @@
+---
+# Include defguard configuration (Location creation)
+- name: Include defguard configuration
+  ansible.builtin.import_tasks: _defguard.yml
+
+# Include gateway deployement (Defguard instalation & configuration)
+- name: Include gateway deployment
+  ansible.builtin.import_tasks: _gateway.yml
