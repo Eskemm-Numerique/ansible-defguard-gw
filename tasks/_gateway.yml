@@ -1,0 +1,113 @@
+---
+- name: Define defguard package name
+  ansible.builtin.set_fact:
+    defguard_gw_package_name : "{{ defguard_gw_package_url | split('/') | last }}"
+
+- name: Gather the package facts before installation
+  ansible.builtin.package_facts:
+    manager: auto
+
+- name: "Download defguard gateway package {{ defguard_gw_package_name }}"
+  get_url: 
+    url="{{ defguard_gw_package_url }}"
+    dest="/tmp/{{ defguard_gw_package_name }}"
+
+- name: "Install defguard gateway package {{ defguard_gw_package_name }}"
+  apt: 
+    deb: "/tmp/{{ defguard_gw_package_name }}"
+    force: yes
+
+- name: Install wireguard-tools for troubleshooting
+  ansible.builtin.apt:
+    name: wireguard-tools
+    state: present
+
+- name: Create gateway.toml config file
+  ansible.builtin.template:
+    src: gateway.toml.j2
+    dest: /etc/defguard/gateway.toml
+    owner: root
+    group: root
+    mode: 0644
+  when:
+    - defguard_deployment is defined
+    - defguard_deployment == true
+
+- name: Copy defguard-ca certificat file
+  ansible.builtin.copy:
+    src: defguard-ca.pem
+    dest: /etc/defguard/defguard-ca.pem
+    owner: root
+    group: root
+    mode: 0644
+  when:
+    - defguard_deployment is defined
+    - defguard_deployment == true
+
+- name: Copy up_script file
+  ansible.builtin.copy:
+    src: up_script.sh
+    dest: /etc/defguard/up_script.sh
+    owner: root
+    group: root
+    mode: 0644
+  when:
+    - defguard_deployment is defined
+    - defguard_deployment == true
+
+- name: Copy down_script file
+  ansible.builtin.copy:
+    src: down_script.sh
+    dest: /etc/defguard/down_script.sh
+    owner: root
+    group: root
+    mode: 0644
+  when:
+    - defguard_deployment is defined
+    - defguard_deployment == true
+
+- name: Activate ip_forward
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_forward
+    value: '1'
+    sysctl_set: true
+    state: present
+    reload: true
+  when:
+    - defguard_deployment is defined
+    - defguard_deployment == true
+
+- name: Enable and start service defguard-gateway.service
+  ansible.builtin.service:
+    name: defguard-gateway.service
+    enabled: yes
+    state: started
+  when : "'defguard-gateway' not in ansible_facts.packages"
+
+- name: Restart service defguard-gateway.service
+  ansible.builtin.service:
+    name: defguard-gateway.service
+    enabled: yes
+    state: restarted
+  when : "'defguard-gateway' in ansible_facts.packages"
+
+- name: Copy prometheus wireguard exporter binary file
+  become: true
+  ansible.builtin.copy:
+    src: files/wireguard_exporter
+    dest: /usr/local/bin/
+    mode: "0755"
+
+- name: Copy prometheus wireguard exporter service file
+  become: true
+  ansible.builtin.copy:
+    src: files/wg-exporter.service
+    dest: /usr/lib/systemd/system/
+    mode: "0644"
+
+- name: Start prometheus wireguard exporter
+  become: true
+  ansible.builtin.systemd:
+    name: wg-exporter
+    state: started
+    enabled: true  
