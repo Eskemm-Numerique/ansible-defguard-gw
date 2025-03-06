@@ -1,0 +1,12 @@
+token = "{{ defguard_gw_token }}"
+grpc_url = "{{ defguard_grpc_url }}"
+name = "{{ defguard_gw_name }}"
+userspace = false
+grpc_ca = "/etc/defguard/defguard-ca.pem"
+stats_period = 60
+ifname = "wg0"
+use_syslog = false
+syslog_facility = "LOG_USER"
+syslog_socket = "/var/run/log"
+pre_up = "/bin/bash /etc/defguard/up_script.sh"
+pre_down = "/bin/bash /etc/defguard/down_script.sh"
