@@ -1,0 +1,14 @@
+---
+defguard_api_url: "https://api.defguard.com"
+defguard_gw_group: "my_group"
+defguard_gw_name: "my_network"
+defguard_gw_ip: "X.X.X.X"
+defguard_gw_allowed_ips: "X.X.Z.Y/XX"
+defguard_gw_dns: "X.X.X.X"
+defguard_gw_public_ip: "X.X.X.X"
+defguard_keepalive_interval: 25
+defguard_mfa: true
+defguard_peer_disconnect_threshold: 3
+defguard_gw_port: 51002
+defguard_gw_package_url: "https://example.com/defguard-gateway.deb"
+defguard_deployment: true
